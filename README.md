@@ -1,63 +1,54 @@
 # Guinier Analysis for SAXS Data
 
-A modular Python application for analyzing Small Angle X-ray Scattering (SAXS) data using the Guinier approximation.
+A comprehensive Python toolkit for Small Angle X-ray Scattering (SAXS) Guinier analysis with both traditional and machine learning approaches.
 
-## Overview
+## Features
 
-This application provides both a graphical user interface (GUI) and a programmatic API for SAXS data analysis. The modular design allows for:
+### Core Functionality
+- **Multiple Data Format Support**: .grad files, standard text files with q, I columns
+- **Data Processing**: Background subtraction, normalization, SNR filtering
+- **Intelligent Fitting Range**: Manual selection and automatic range detection (q·Rg ≤ 1.3)
+- **Robust Fitting Algorithms**: Traditional least squares, robust regression, and scikit-learn methods
+- **Quality Assessment**: R², χ², residual analysis, and physical validation
+- **Results Export**: Comprehensive results with uncertainty estimates
 
-- **Interactive GUI analysis** for user-friendly data exploration
-- **Programmatic batch processing** for high-throughput analysis
-- **Easy integration** into existing analysis pipelines
+### Machine Learning Integration
+- **Multiple Regression Algorithms**: Linear, Huber, RANSAC, Theil-Sen, Ridge, Lasso
+- **Cross-Validation**: Model stability assessment
+- **Hyperparameter Optimization**: Automatic parameter tuning
+- **Model Comparison**: Side-by-side algorithm comparison
+- **Pipeline Support**: Preprocessing and fitting in unified workflows
 
-### Features
-
-- Load and visualize SAXS data (supports .grad files and standard q, I format)
-- Background subtraction and normalization
-- Signal-to-noise ratio (SNR) filtering
-- Automated Guinier regime detection (q·Rg ≤ 1.3)
-- Robust fitting algorithms with outlier rejection
-- Comprehensive fit quality assessment
-- Export results in CSV format with publication-quality plots
-
-## Modular Architecture
-
-The application is organized into three main modules:
-
-- **`guinier_core.py`**: Core analysis functionality (data loading, processing, fitting)
-- **`guinier_gui.py`**: Graphical user interface
-- **`guinier_analysis.py`**: Main entry point (backward compatible)
-- **`example_usage.py`**: Demonstrates programmatic usage
+### User Interfaces
+- **Interactive GUI**: User-friendly interface with real-time plotting
+- **Programmatic API**: Full Python API for batch processing and automation
+- **Example Scripts**: Comprehensive usage examples and best practices
 
 ## Installation
 
-1. Clone this repository or download the files
-2. Install the required dependencies:
-
+### Requirements
 ```bash
 pip install -r requirements.txt
 ```
 
-## Usage
+### Dependencies
+- numpy >= 1.19.0
+- matplotlib >= 3.3.0
+- scipy >= 1.5.0
+- scikit-learn >= 0.24.0
+- tkinter (usually included with Python)
+- pandas >= 1.1.0
+
+## Quick Start
 
 ### GUI Application
-
-Run the graphical interface:
-
 ```bash
 python guinier_analysis.py
 ```
 
-Or directly:
-
-```bash
-python guinier_gui.py
-```
-
 ### Programmatic Usage
 
-For batch processing or integration into analysis pipelines:
-
+#### Basic Analysis
 ```python
 from guinier_core import GuinierAnalyzer
 
@@ -65,210 +56,320 @@ from guinier_core import GuinierAnalyzer
 analyzer = GuinierAnalyzer()
 
 # Load data
-result = analyzer.load_data("your_data.grad")
+result = analyzer.load_data('your_data.grad')
 
 # Apply corrections
 analyzer.apply_corrections(bg_value=0.1, norm_factor=1.0, snr_threshold=3.0)
 
-# Auto-determine fitting range
-analyzer.auto_range()
-
-# Perform fit
+# Perform traditional fit
 fit_result = analyzer.perform_fit(use_robust=True)
 
-# Get results
-results = analyzer.get_fit_results()
-print(f"Rg = {results['Rg']:.2f} ± {results['Rg_error']:.2f} Å")
+print(f"Rg = {fit_result['Rg']:.2f} ± {fit_result['Rg_error']:.2f} Å")
+print(f"I0 = {fit_result['I0']:.2e} ± {fit_result['I0_error']:.2e}")
 ```
 
-### Batch Processing
-
-Process multiple files automatically:
-
+#### Scikit-Learn Enhanced Analysis
 ```python
-from example_usage import batch_analysis
+from guinier_sklearn_integration import EnhancedGuinierAnalyzer
 
-filenames = ["file1.grad", "file2.grad", "file3.grad"]
-batch_results = batch_analysis(filenames, output_dir="results")
+# Initialize enhanced analyzer
+analyzer = EnhancedGuinierAnalyzer()
+
+# Load data (same as above)
+analyzer.load_data('your_data.grad')
+
+# Compare multiple algorithms
+comparison = analyzer.compare_methods()
+analyzer.print_comparison()
+
+# Use specific sklearn method
+result = analyzer.fit_with_sklearn('huber', cross_validate=True)
+print(f"Huber Regression: Rg = {result['Rg']:.2f} Å, CV Score = {np.mean(result['cv_scores']):.4f}")
+
+# Get best model automatically
+best_model = analyzer.get_best_sklearn_model()
+print(f"Best model: {best_model['name']}")
 ```
+
+## Architecture
+
+### Modular Design
+```
+guinier_analysis.py          # Main entry point (GUI launcher)
+├── guinier_core.py         # Core analysis engine
+├── guinier_gui.py          # GUI interface
+├── guinier_sklearn.py      # Scikit-learn integration
+├── guinier_sklearn_integration.py  # Enhanced analyzer
+└── example_usage.py        # Usage examples
+```
+
+### Core Components
+
+#### 1. GuinierAnalyzer (guinier_core.py)
+**Primary analysis engine with comprehensive SAXS processing capabilities**
+
+**Key Methods:**
+- `load_data(filename)`: Load SAXS data from various formats
+- `apply_corrections(bg_value, norm_factor, snr_threshold)`: Data preprocessing
+- `set_fit_range(q_min_idx, q_max_idx)`: Manual range selection
+- `auto_fit_range()`: Automatic range detection using q·Rg ≤ 1.3
+- `perform_fit(use_robust=True)`: Guinier fitting with robust options
+- `export_results(filename)`: Save analysis results
+
+#### 2. GuinierRegressor (guinier_sklearn.py)
+**Scikit-learn compatible regressor for Guinier analysis**
+
+**Features:**
+- BaseEstimator and RegressorMixin inheritance
+- Automatic Guinier parameter extraction (Rg, I0)
+- Physical validation (q·Rg range checking)
+- Compatible with sklearn pipelines and cross-validation
+
+#### 3. SklearnGuinierAnalyzer (guinier_sklearn.py)
+**Advanced analyzer using scikit-learn ecosystem**
+
+**Capabilities:**
+- Multiple regression algorithms comparison
+- Hyperparameter optimization with GridSearchCV
+- Cross-validation for model stability
+- Automated model selection
+
+#### 4. EnhancedGuinierAnalyzer (guinier_sklearn_integration.py)
+**Unified interface combining traditional and ML approaches**
+
+**Benefits:**
+- Seamless integration with existing workflows
+- Side-by-side method comparison
+- Best practice recommendations
+- Backward compatibility
+
+## Algorithm Selection Guide
+
+### Traditional Methods
+| Method | Use Case | Pros | Cons |
+|--------|----------|------|------|
+| **numpy.polyfit** | Clean data, standard analysis | Fast, well-understood | Sensitive to outliers |
+| **Theil-Sen/Huber** | Data with outliers | Robust to outliers | Slower computation |
+
+### Scikit-Learn Methods
+| Algorithm | Use Case | Pros | Cons |
+|-----------|----------|------|------|
+| **LinearRegression** | Clean data, baseline | Fast, identical to polyfit | No outlier robustness |
+| **HuberRegressor** | Moderate outliers | Good balance of speed/robustness | Parameter tuning needed |
+| **RANSACRegressor** | Many outliers | Excellent outlier rejection | Can be unstable |
+| **TheilSenRegressor** | Robust analysis | Very robust, no parameters | Slow for large datasets |
+| **Ridge** | Noisy data | Regularization prevents overfitting | May bias results |
+| **Lasso** | Feature selection | Sparse solutions | Can be too aggressive |
+
+### Recommendations
+- **Default choice**: HuberRegressor (good balance of robustness and speed)
+- **Clean data**: LinearRegression or numpy.polyfit
+- **Many outliers**: RANSACRegressor or TheilSenRegressor
+- **Noisy data**: Ridge regression
+- **Uncertain**: Use `compare_methods()` to evaluate all algorithms
+
+## GUI Usage
+
+### Enhanced GUI Features
+1. **Algorithm Selection**: Dropdown menu to choose regression method
+2. **Method Comparison**: Button to compare all available algorithms
+3. **Cross-Validation**: Enable/disable CV assessment
+4. **Hyperparameter Tuning**: Automatic parameter optimization
+5. **Real-time Results**: Live comparison of different methods
+
+### GUI Workflow
+1. **Load Data**: Use "Load SAXS Data" button
+2. **Set Parameters**: Background, normalization, SNR threshold
+3. **Choose Algorithm**: Select from dropdown (Linear, Huber, RANSAC, etc.)
+4. **Set Range**: Manual or automatic (q·Rg ≤ 1.3)
+5. **Perform Fit**: Click "Perform Guinier Fit"
+6. **Compare Methods**: Use "Compare All Methods" for algorithm comparison
+7. **Save Results**: Export results with all method comparisons
 
 ## API Reference
 
-### GuinierAnalyzer Class
+### Core Classes
 
-The core analysis class with the following main methods:
-
-- `load_data(filename)`: Load SAXS data from file
-- `apply_corrections(bg_value, norm_factor, snr_threshold)`: Apply data corrections
-- `auto_range(q_rg_limit=1.3)`: Automatically determine fitting range
-- `set_fit_range(q_min_idx, q_max_idx)`: Manually set fitting range
-- `perform_fit(use_robust=True)`: Perform Guinier fitting
-- `get_fit_results()`: Get fitting results
-- `get_processed_data()`: Get processed data arrays
-- `save_results(filename)`: Save results to CSV file
-
-### Data Formats
-
-**Supported input formats:**
-- `.grad` files (SAXS data with q, I, dI columns)
-- CSV/text files with q, I columns (optional dI column)
-
-**Output formats:**
-- CSV files with fitting parameters and uncertainties
-- CSV files with fitted data points
-- PDF plots (when using GUI)
-
-## Theoretical Background
-
-The Guinier approximation describes the scattering intensity I(q) in the low-q region:
-
-```
-I(q) = I₀ · exp(-q²Rg²/3)
+#### GuinierAnalyzer
+```python
+class GuinierAnalyzer:
+    def __init__(self)
+    def load_data(self, filename: str) -> dict
+    def apply_corrections(self, bg_value: float, norm_factor: float, snr_threshold: float) -> dict
+    def set_fit_range(self, q_min_idx: int, q_max_idx: int) -> dict
+    def auto_fit_range(self) -> dict
+    def perform_fit(self, use_robust: bool = True) -> dict
+    def export_results(self, filename: str) -> dict
 ```
 
-Where:
-- **I₀** is the extrapolated intensity at q=0
-- **Rg** is the radius of gyration of the scattering domains
-- The approximation is valid in the region where **q·Rg ≤ 1.3**
+#### GuinierRegressor
+```python
+class GuinierRegressor(BaseEstimator, RegressorMixin):
+    def __init__(self, regressor=None, validate_range=True, max_qrg=1.3)
+    def fit(self, X, y, sample_weight=None)
+    def predict(self, X)
+    def score(self, X, y, sample_weight=None)
+    
+    # Fitted parameters
+    .Rg_: float              # Radius of gyration
+    .I0_: float              # Forward scattering intensity
+    .max_qrg_actual_: float  # Maximum q·Rg value
+```
 
-By plotting ln(I) vs q², a linear relationship is expected in the Guinier regime:
-- **Slope** = -Rg²/3
-- **Intercept** = ln(I₀)
+#### SklearnGuinierAnalyzer
+```python
+class SklearnGuinierAnalyzer:
+    def __init__(self)
+    def load_data(self, q, I, dI=None)
+    def fit_multiple_models(self, q_range=None, use_weights=True, cv_folds=5) -> dict
+    def hyperparameter_tuning(self, regressor_name='huber', param_grid=None, cv_folds=5) -> dict
+    def plot_comparison(self, save_filename=None)
+    def get_summary_table(self) -> pd.DataFrame
+```
 
-## Advanced Features
-
-### Robust Fitting
-
-The application includes robust fitting algorithms that reduce the impact of outliers:
-
-- **Theil-Sen estimator**: Robust slope estimation
-- **Huber regression**: Weighted robust fitting for data with error bars
-- **Automatic outlier detection**: Based on residual analysis
-
-### Quality Assessment
-
-Comprehensive fit quality metrics:
-
-- **R² (coefficient of determination)**: Measures goodness of fit
-- **χ²ᵣₑₙ (reduced chi-squared)**: Measures fit quality relative to expected variance
-- **Residual analysis**: Statistical analysis of fit residuals
-- **Physical validity checks**: Ensures q·Rg ≤ 1.3 criterion
-
-### SNR Filtering
-
-Automatic data filtering based on signal-to-noise ratio:
-
-- Filters out low-quality data points
-- Preserves high-quality data for reliable fitting
-- Configurable SNR threshold
+#### EnhancedGuinierAnalyzer
+```python
+class EnhancedGuinierAnalyzer(GuinierAnalyzer):
+    def fit_with_sklearn(self, regressor_name='huber', cross_validate=True) -> dict
+    def compare_methods(self) -> dict
+    def get_best_sklearn_model(self) -> dict
+    def print_comparison(self)
+```
 
 ## Example Workflows
 
-### 1. Interactive Analysis
-
-```python
-# Load GUI for interactive analysis
-python guinier_analysis.py
-
-# 1. Load your SAXS data file
-# 2. Adjust background and normalization if needed
-# 3. Use "Auto Range" to find optimal fitting range
-# 4. Perform Guinier fit
-# 5. Save results and plots
-```
-
-### 2. Automated Batch Processing
-
-```python
-import os
-from example_usage import batch_analysis
-
-# Process all .grad files in a directory
-data_dir = "saxs_data"
-filenames = [os.path.join(data_dir, f) for f in os.listdir(data_dir) if f.endswith('.grad')]
-
-# Batch process with automatic output
-results = batch_analysis(filenames, output_dir="batch_results")
-
-# Analyze success rate
-success_rate = sum(1 for r in results if r['success']) / len(results)
-print(f"Success rate: {success_rate:.1%}")
-```
-
-### 3. Custom Analysis Pipeline
-
+### 1. Single File Analysis
 ```python
 from guinier_core import GuinierAnalyzer
-import numpy as np
 
-def custom_analysis(filename):
-    analyzer = GuinierAnalyzer()
-    
-    # Load and process data
-    analyzer.load_data(filename)
-    analyzer.apply_corrections(bg_value=0.05, snr_threshold=5.0)
-    
-    # Use custom fitting range
-    analyzer.set_fit_range(10, 100)
-    
-    # Perform fit with custom parameters
-    fit_result = analyzer.perform_fit(use_robust=False)
-    
-    if fit_result['success']:
-        results = analyzer.get_fit_results()
-        
-        # Custom validation
-        if results['r_squared'] > 0.995 and results['max_q_rg'] <= 1.3:
-            return results
-    
-    return None
+analyzer = GuinierAnalyzer()
+result = analyzer.load_data('sample.grad')
+analyzer.apply_corrections(bg_value=0.1, norm_factor=1.0, snr_threshold=3.0)
+analyzer.auto_fit_range()
+fit_result = analyzer.perform_fit(use_robust=True)
+
+print(f"Rg = {fit_result['Rg']:.2f} ± {fit_result['Rg_error']:.2f} Å")
 ```
 
-## Notes
+### 2. Batch Processing with Algorithm Comparison
+```python
+from guinier_sklearn_integration import EnhancedGuinierAnalyzer
+import glob
 
-- **Data quality**: Ensure data is properly background-subtracted and normalized
-- **Guinier regime**: The approximation is only valid for dilute, non-interacting systems
-- **Validity condition**: Always verify that q·Rg ≤ 1.3 for reliable results
-- **Error analysis**: Use error bars when available for more accurate uncertainty estimates
+results = []
+for filename in glob.glob('*.grad'):
+    analyzer = EnhancedGuinierAnalyzer()
+    analyzer.load_data(filename)
+    analyzer.apply_corrections(0.1, 1.0, 3.0)
+    analyzer.auto_fit_range()
+    
+    # Compare methods
+    comparison = analyzer.compare_methods()
+    best_model = analyzer.get_best_sklearn_model()
+    
+    results.append({
+        'filename': filename,
+        'best_method': best_model['name'],
+        'Rg': best_model['result']['Rg'],
+        'cv_score': best_model['cv_score']
+    })
 
-## Physical Validation Guidelines
+import pandas as pd
+df = pd.DataFrame(results)
+df.to_csv('batch_results.csv', index=False)
+```
 
-For **globular proteins**:
-- Rg ≈ 0.77 × (MW in kDa)^(1/3) nm
+### 3. Hyperparameter Optimization
+```python
+from guinier_sklearn import SklearnGuinierAnalyzer
 
-For **extended proteins**:
-- Rg may be 1.5-2× larger than globular proteins
+analyzer = SklearnGuinierAnalyzer()
+analyzer.load_data(q, I, dI)
 
-Always compare results with:
-- Literature values for similar systems
-- Known structural data
-- Expected molecular weight relationships
+# Tune Huber regression
+param_grid = {
+    'guinier__regressor__epsilon': [1.1, 1.35, 1.5, 2.0],
+    'guinier__regressor__alpha': [1e-4, 1e-3, 1e-2]
+}
+
+tuning_results = analyzer.hyperparameter_tuning('huber', param_grid, cv_folds=5)
+print(f"Best parameters: {tuning_results['best_params']}")
+print(f"Best Rg: {tuning_results['Rg']:.2f} Å")
+```
+
+## Physical Validation
+
+### Guinier Regime Validity
+The Guinier approximation is valid when **q·Rg ≤ 1.3**. The software automatically:
+- Checks this condition for all fits
+- Warns when the limit is exceeded
+- Provides automatic range selection to ensure validity
+- Marks invalid fits in comparison tables
+
+### Quality Metrics
+- **R²**: Goodness of fit for ln(I) vs q² (should be > 0.95)
+- **χ²**: Reduced chi-squared (should be close to 1.0)
+- **Residual Analysis**: Systematic deviations from linear behavior
+- **Cross-Validation**: Model stability and generalization
 
 ## Troubleshooting
 
-**Common issues:**
+### Common Issues
+1. **Low R² values**: Check data quality, background subtraction, q-range
+2. **q·Rg > 1.3**: Reduce q-range or check if data is suitable for Guinier analysis
+3. **Unstable fits**: Try robust methods (Huber, Theil-Sen) or increase SNR threshold
+4. **Algorithm comparison shows large differences**: Indicates data quality issues
 
-1. **Import errors**: Ensure all dependencies are installed (`pip install -r requirements.txt`)
-2. **Data loading fails**: Check file format and ensure q, I columns are present
-3. **Fitting fails**: Verify data quality and try adjusting SNR threshold
-4. **Invalid Rg**: Check that data contains a valid Guinier regime
+### Best Practices
+1. **Always check q·Rg ≤ 1.3** for physical validity
+2. **Use robust methods** for real experimental data
+3. **Compare multiple algorithms** to assess result stability
+4. **Validate with cross-validation** for important measurements
+5. **Export full results** including all quality metrics
 
-**Getting help:**
+## Contributing
 
-- Check the example scripts for usage patterns
-- Review docstrings in `guinier_core.py` for detailed API documentation
-- Ensure your data follows the expected format conventions
+### Development Setup
+```bash
+git clone https://github.com/your-repo/guinier-analysis.git
+cd guinier-analysis
+pip install -r requirements.txt
+```
 
-## Requirements
+### Testing
+```bash
+python -m pytest tests/
+```
 
-- Python 3.6+
-- numpy
-- matplotlib
-- scipy
-- pandas
-- tkinter (for GUI)
-- scikit-learn (optional, for robust fitting)
+### Code Style
+- Follow PEP 8 guidelines
+- Use type hints where appropriate
+- Document all public methods
+- Include comprehensive docstrings
 
 ## License
 
-This project is provided as-is for research and educational purposes. 
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Citation
+
+If you use this software in your research, please cite:
+
+```bibtex
+@software{guinier_analysis,
+  title={Guinier Analysis for SAXS Data with Machine Learning Integration},
+  author={Your Name},
+  year={2024},
+  url={https://github.com/your-repo/guinier-analysis}
+}
+```
+
+## References
+
+1. Guinier, A. & Fournet, G. (1955). Small-Angle Scattering of X-rays. Wiley.
+2. Hammersley, A. P. (2016). FIT2D: a multi-purpose data reduction, analysis and visualization program. J. Appl. Cryst. 49, 646-652.
+3. Pedregosa, F. et al. (2011). Scikit-learn: Machine Learning in Python. JMLR 12, 2825-2830.
+
+---
+
+For more information, examples, and updates, visit our [GitHub repository](https://github.com/your-repo/guinier-analysis). 

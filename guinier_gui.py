@@ -6,16 +6,17 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
 from guinier_core import GuinierAnalyzer
+from guinier_sklearn_integration import EnhancedGuinierAnalyzer
 
 
 class GuinierAnalysisGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Guinier Analysis for SAXS Data")
-        self.root.geometry("1200x800")
+        self.root.title("Guinier Analysis for SAXS Data - Enhanced with Machine Learning")
+        self.root.geometry("1400x900")
         
-        # Initialize core analyzer
-        self.analyzer = GuinierAnalyzer()
+        # Initialize enhanced analyzer
+        self.analyzer = EnhancedGuinierAnalyzer()
         
         self._create_widgets()
         
@@ -85,19 +86,50 @@ class GuinierAnalysisGUI:
         fit_frame = ttk.LabelFrame(control_frame, text="Guinier Fitting")
         fit_frame.pack(fill=tk.X, padx=5, pady=5)
         
-        # Robust fitting option
+        # Algorithm selection
+        algo_frame = ttk.Frame(fit_frame)
+        algo_frame.pack(fill=tk.X, padx=5, pady=5)
+        ttk.Label(algo_frame, text="Algorithm:").pack(side=tk.LEFT, padx=5)
+        self.algorithm_var = tk.StringVar(value="huber")
+        algorithm_combo = ttk.Combobox(algo_frame, textvariable=self.algorithm_var, 
+                                     values=["traditional", "traditional_robust", "linear", "huber", "ridge", "theilsen"], 
+                                     state="readonly", width=15)
+        algorithm_combo.pack(side=tk.LEFT, padx=5)
+        
+        # Cross-validation option
+        cv_frame = ttk.Frame(fit_frame)
+        cv_frame.pack(fill=tk.X, padx=5, pady=5)
+        self.cv_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(cv_frame, text="Cross-validation", variable=self.cv_var).pack(side=tk.LEFT, padx=5)
+        
+        # Robust fitting option (for traditional methods)
         robust_frame = ttk.Frame(fit_frame)
         robust_frame.pack(fill=tk.X, padx=5, pady=5)
         self.robust_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(robust_frame, text="Use robust fitting (reduce outlier impact)", 
+        ttk.Checkbutton(robust_frame, text="Use robust fitting (traditional methods)", 
                        variable=self.robust_var).pack(side=tk.LEFT, padx=5)
         
-        ttk.Button(fit_frame, text="Perform Guinier Fit", command=self.perform_fit).pack(padx=5, pady=5)
-        ttk.Button(fit_frame, text="Save Results", command=self.save_results).pack(padx=5, pady=5)
+        # Fitting buttons
+        button_frame = ttk.Frame(fit_frame)
+        button_frame.pack(fill=tk.X, padx=5, pady=5)
+        ttk.Button(button_frame, text="Perform Guinier Fit", command=self.perform_fit).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Compare All Methods", command=self.compare_methods).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Save Results", command=self.save_results).pack(side=tk.LEFT, padx=5)
         
         # Results
-        self.result_text = tk.Text(control_frame, height=10, width=40, state="disabled")
-        self.result_text.pack(fill=tk.X, padx=5, pady=5)
+        result_frame = ttk.LabelFrame(control_frame, text="Results")
+        result_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Create text widget with scrollbar for results
+        text_container = ttk.Frame(result_frame)
+        text_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        self.result_text = tk.Text(text_container, height=12, width=40, state="disabled", font=('Courier', 9))
+        result_scrollbar = ttk.Scrollbar(text_container, orient=tk.VERTICAL, command=self.result_text.yview)
+        self.result_text.configure(yscrollcommand=result_scrollbar.set)
+        
+        self.result_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        result_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
         # Right panel (plots)
         plot_frame = ttk.LabelFrame(main_frame, text="Plots")
@@ -223,25 +255,137 @@ class GuinierAnalysisGUI:
             messagebox.showerror("Error", result['message'])
     
     def perform_fit(self):
-        use_robust = self.robust_var.get()
+        try:
+            algorithm = self.algorithm_var.get()
+            
+            if algorithm == "traditional":
+                # Traditional numpy polyfit
+                result = self.analyzer.perform_fit(use_robust=False)
+            elif algorithm == "traditional_robust":
+                # Traditional robust fit
+                result = self.analyzer.perform_fit(use_robust=True)
+            else:
+                # Scikit-learn methods
+                result = self.analyzer.fit_with_sklearn(algorithm, cross_validate=self.cv_var.get())
+            
+            if result['success']:
+                # Update plots with fit
+                self.update_plots(show_fit=True)
+                
+                # Update results display
+                self.update_results()
+                
+                message = result['message']
+                if result.get('warning'):
+                    message += f"\n\n{result['warning']}"
+                
+                messagebox.showinfo("Success", message)
+            else:
+                messagebox.showerror("Error", result['message'])
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Fitting failed: {str(e)}")
+    
+    def compare_methods(self):
+        """Compare all available fitting methods."""
+        try:
+            # Perform comparison
+            comparison_result = self.analyzer.compare_methods()
+            
+            if comparison_result['success']:
+                # Update plots with comparison
+                self.update_plots(show_fit=True)
+                
+                # Show comparison results in a new window
+                self.show_comparison_window()
+                
+                messagebox.showinfo("Success", "Method comparison completed!")
+            else:
+                messagebox.showerror("Error", comparison_result['message'])
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Comparison failed: {str(e)}")
+    
+    def show_comparison_window(self):
+        """Show method comparison results in a new window."""
+        if self.analyzer.model_comparison is None:
+            messagebox.showwarning("Warning", "No comparison results available.")
+            return
         
-        # Use core analyzer to perform fit
-        result = self.analyzer.perform_fit(use_robust)
+        # Create new window
+        comparison_window = tk.Toplevel(self.root)
+        comparison_window.title("Method Comparison Results")
+        comparison_window.geometry("900x700")
         
-        if result['success']:
-            # Update plots with fit
-            self.update_plots(show_fit=True)
+        # Create text widget with scrollbar
+        text_frame = ttk.Frame(comparison_window)
+        text_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        
+        text_widget = tk.Text(text_frame, font=('Courier', 10))
+        scrollbar = ttk.Scrollbar(text_frame, orient=tk.VERTICAL, command=text_widget.yview)
+        text_widget.configure(yscrollcommand=scrollbar.set)
+        
+        text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Format and display comparison results
+        comparison_text = self.format_comparison_results()
+        text_widget.insert(tk.END, comparison_text)
+        text_widget.config(state=tk.DISABLED)
+        
+        # Best model recommendation
+        best_model = self.analyzer.get_best_sklearn_model()
+        if best_model:
+            recommendation = f"Recommended Model: {best_model['name']}\n"
+            recommendation += f"Cross-validation Score: {best_model['cv_score']:.4f}\n"
+            recommendation += f"Rg: {best_model['result']['Rg']:.3f} Å\n"
             
-            # Update results display
-            self.update_results()
+            # Update algorithm selection to best model
+            self.algorithm_var.set(best_model['name'])
             
-            message = result['message']
-            if result.get('warning'):
-                message += f"\n\n{result['warning']}"
+            # Show recommendation in a message box
+            messagebox.showinfo("Best Model", recommendation)
+    
+    def format_comparison_results(self):
+        """Format comparison results for display."""
+        if self.analyzer.model_comparison is None:
+            return "No comparison results available."
+        
+        text = "METHOD COMPARISON RESULTS\n"
+        text += "=" * 80 + "\n\n"
+        
+        # Header
+        text += f"{'Method':<20} {'Rg (Å)':<10} {'I0':<12} {'R²':<8} {'χ²':<8} {'CV_mean':<8} {'CV_std':<8} {'Valid':<6}\n"
+        text += "-" * 80 + "\n"
+        
+        # Results
+        for name, result in self.analyzer.model_comparison.items():
+            cv_mean = f"{result.get('cv_mean', 0):.4f}" if result.get('cv_mean') is not None else "N/A"
+            cv_std = f"{result.get('cv_std', 0):.4f}" if result.get('cv_std') is not None else "N/A"
+            valid = "Yes" if result.get('valid_guinier', False) else "No"
             
-            messagebox.showinfo("Success", message)
-        else:
-            messagebox.showerror("Error", result['message'])
+            text += f"{result['method']:<20} "
+            text += f"{result['Rg']:<10.3f} "
+            text += f"{result['I0']:<12.2e} "
+            text += f"{result['r_squared']:<8.4f} "
+            text += f"{result['chi_squared']:<8.4f} "
+            text += f"{cv_mean:<8} "
+            text += f"{cv_std:<8} "
+            text += f"{valid:<6}\n"
+        
+        text += "\n" + "=" * 80 + "\n"
+        
+        # Recommendations
+        text += "RECOMMENDATIONS:\n"
+        text += "• Use 'huber' for data with moderate outliers (recommended default)\n"
+        text += "• Use 'linear' for clean data with minimal outliers\n"
+        text += "• Use 'theilsen' for data with many outliers\n"
+        text += "• Use 'ridge' for noisy data (regularization helps)\n"
+        text += "• Traditional methods provide good baseline comparison\n"
+        text += "• Cross-validation scores indicate model stability\n"
+        text += "• Valid = Yes means q·Rg ≤ 1.3 (physically meaningful)\n"
+        
+        return text
     
     def update_plots(self, show_fit=False):
         # Get processed data from analyzer
@@ -447,8 +591,9 @@ class GuinierAnalysisGUI:
         self.result_text.delete(1.0, tk.END)
         
         # Add results
-        self.result_text.insert(tk.END, "Guinier Analysis Results:\n")
-        self.result_text.insert(tk.END, "-----------------------\n")
+        algorithm = self.algorithm_var.get()
+        self.result_text.insert(tk.END, f"Guinier Analysis Results ({algorithm}):\n")
+        self.result_text.insert(tk.END, "-" * 40 + "\n")
         self.result_text.insert(tk.END, f"Radius of Gyration (Rg): {fit_results['Rg']:.2f} ± {fit_results['Rg_error']:.2f} Å\n")
         self.result_text.insert(tk.END, f"Zero-angle Intensity (I₀): {fit_results['I0']:.2e} ± {fit_results['I0_error']:.2e}\n")
         
@@ -461,6 +606,15 @@ class GuinierAnalysisGUI:
             chi2_status = "Good" if 0.5 <= fit_results['chi_squared'] <= 1.5 else "Poor"
             self.result_text.insert(tk.END, f"χ²ᵣₑₙ (Reduced chi-squared): {fit_results['chi_squared']:.4f} ({chi2_status})\n")
         
+        # Add sklearn-specific results
+        if hasattr(self.analyzer, 'sklearn_models') and algorithm in self.analyzer.sklearn_models:
+            sklearn_result = self.analyzer.sklearn_models[algorithm]
+            if sklearn_result.get('cv_scores') is not None:
+                cv_scores = sklearn_result['cv_scores']
+                self.result_text.insert(tk.END, f"Cross-validation Score: {np.mean(cv_scores):.4f} ± {np.std(cv_scores):.4f}\n")
+                cv_status = "Good" if np.mean(cv_scores) > 0.9 else "Poor"
+                self.result_text.insert(tk.END, f"Model Stability: {cv_status}\n")
+        
         # Add fitting range info
         if fit_results['max_q_rg'] is not None:
             q_rg_status = "Valid" if fit_results['max_q_rg'] <= 1.3 else "Exceeds limit"
@@ -470,15 +624,35 @@ class GuinierAnalysisGUI:
         if data and 'q_range' in data:
             self.result_text.insert(tk.END, f"q range: {data['q_range'][0]:.4f} - {data['q_range'][-1]:.4f} Å⁻¹\n")
         
+        # Add algorithm-specific notes
+        self.result_text.insert(tk.END, f"\nAlgorithm Notes:\n")
+        algorithm_notes = {
+            'traditional': "Standard numpy.polyfit - fast but sensitive to outliers",
+            'traditional_robust': "Robust methods (Theil-Sen/Huber) - good for outliers",
+            'linear': "sklearn LinearRegression - equivalent to numpy.polyfit",
+            'huber': "Huber regression - robust to moderate outliers (recommended)",
+            'ridge': "Ridge regression - good for noisy data with regularization",
+            'theilsen': "Theil-Sen regression - very robust to outliers but slower"
+        }
+        note = algorithm_notes.get(algorithm, "Unknown algorithm")
+        self.result_text.insert(tk.END, f"• {note}\n")
+        
         # Add physical reasonability check
         if fit_results['Rg'] > 0:
-            physical_note = "Note: For validation, compare Rg with expected values for your system.\n"
+            physical_note = "\nPhysical Validation:\n"
             physical_note += "- Globular proteins: Rg ≈ 0.77 * (MW in kDa)^(1/3) nm\n"
-            physical_note += "- Extended proteins: Rg may be 1.5-2x larger than globular\n"
+            physical_note += "- Extended proteins: Rg may be 1.5-2x larger\n"
             physical_note += "- Verify results with literature or known structures\n"
-            self.result_text.insert(tk.END, f"\nPhysical Reasonability:\n{physical_note}\n")
+            self.result_text.insert(tk.END, physical_note)
         
-        self.result_text.insert(tk.END, "-----------------------\n")
+        # Best model recommendation
+        if hasattr(self.analyzer, 'model_comparison') and self.analyzer.model_comparison:
+            best_model = self.analyzer.get_best_sklearn_model()
+            if best_model and best_model['name'] != algorithm:
+                self.result_text.insert(tk.END, f"\nRecommendation: Try '{best_model['name']}' method ")
+                self.result_text.insert(tk.END, f"(CV score: {best_model['cv_score']:.4f})\n")
+        
+        self.result_text.insert(tk.END, "-" * 40 + "\n")
         
         # Disable text widget again
         self.result_text.config(state="disabled")
