@@ -17,7 +17,27 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from guinier_gui import main
+    import tkinter as tk
+    from guinier_gui import GuinierAnalysisGUI
+    
+    def main():
+        """Main function to launch the Guinier analysis GUI with icon support."""
+        root = tk.Tk()
+        
+        # Set application icon at startup
+        try:
+            if os.path.exists('guinier_icon.png'):
+                # For most systems, use PNG
+                icon = tk.PhotoImage(file='guinier_icon.png')
+                root.iconphoto(True, icon)
+            elif os.path.exists('guinier_icon.ico'):
+                # For Windows systems
+                root.iconbitmap('guinier_icon.ico')
+        except Exception as e:
+            print(f"Could not load icon: {e}")
+        
+        app = GuinierAnalysisGUI(root)
+        root.mainloop()
     
     if __name__ == "__main__":
         main()

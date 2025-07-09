@@ -5,8 +5,13 @@ Test script for GUI with sklearn functionality
 
 import numpy as np
 import matplotlib.pyplot as plt
-from guinier_sklearn_integration import EnhancedGuinierAnalyzer
+import sys
 import os
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from guinier_core import GuinierAnalyzer
 
 def test_sklearn_gui_functionality():
     """Test the sklearn functionality that will be used in GUI"""
@@ -30,7 +35,7 @@ def test_sklearn_gui_functionality():
     print(f"Data points: {len(q)}, q range: {q[0]:.3f} - {q[-1]:.3f}")
     
     # Initialize analyzer
-    analyzer = EnhancedGuinierAnalyzer()
+    analyzer = GuinierAnalyzer()
     
     # Load data (simulating GUI data loading)
     analyzer.q_data = q

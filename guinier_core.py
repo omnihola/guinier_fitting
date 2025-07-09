@@ -3,6 +3,17 @@ import pandas as pd
 from scipy.optimize import curve_fit
 from scipy import stats
 import os
+import warnings
+
+# Sklearn imports (optional, for enhanced fitting)
+try:
+    from sklearn.linear_model import LinearRegression, HuberRegressor, Ridge, TheilSenRegressor, RANSACRegressor
+    from sklearn.model_selection import cross_val_score
+    from sklearn.metrics import r2_score
+    from sklearn.base import BaseEstimator, RegressorMixin
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
 
 
 class GuinierAnalyzer:
@@ -38,6 +49,11 @@ class GuinierAnalyzer:
         self.fit_slope = None
         self.fit_intercept = None
         self.fit_covariance = None
+        
+        # Sklearn related attributes
+        self.sklearn_models = {}
+        self.model_comparison = None
+        self.sklearn_available = SKLEARN_AVAILABLE
         
     def load_data(self, filename):
         """
@@ -833,4 +849,272 @@ class GuinierAnalyzer:
             return {'success': True, 'message': f"Data saved to {filename}"}
             
         except Exception as e:
-            return {'success': False, 'message': f"Failed to save data: {str(e)}"} 
+            return {'success': False, 'message': f"Failed to save data: {str(e)}"}
+    
+    def fit_with_sklearn(self, algorithm='huber', cross_validate=False):
+        """
+        Perform Guinier fitting using scikit-learn algorithms.
+        
+        Parameters:
+        -----------
+        algorithm : str
+            Algorithm to use: 'linear', 'huber', 'ridge', 'theilsen', 'ransac'
+        cross_validate : bool
+            Whether to perform cross-validation
+            
+        Returns:
+        --------
+        dict : Fitting results with algorithm-specific information
+        """
+        if not self.sklearn_available:
+            return {'success': False, 'message': "Scikit-learn not available"}
+        
+        if self.q_data is None or self.I_data is None:
+            return {'success': False, 'message': "No data loaded"}
+        
+        if self.filtered_indices is None:
+            self.filtered_indices = np.arange(len(self.q_data))
+        
+        try:
+            # Get filtered data
+            q_filtered = self.q_data[self.filtered_indices]
+            I_filtered = self.I_data[self.filtered_indices]
+            
+            # Get data in range for fitting
+            q_range = q_filtered[self.q_min_idx:self.q_max_idx+1]
+            I_range = I_filtered[self.q_min_idx:self.q_max_idx+1]
+            
+            # Apply corrections
+            I_corrected = (I_range - self.bg_value) / self.norm_factor
+            
+            # Prepare data for linear fit: ln(I) vs q²
+            q_sq = q_range**2
+            ln_I = np.log(I_corrected)
+            
+            # Filter valid points
+            valid_idx = np.isfinite(ln_I) & (I_corrected > 0)
+            if np.sum(valid_idx) < 3:
+                return {'success': False, 'message': "Insufficient valid data points for fitting"}
+            
+            q_sq_valid = q_sq[valid_idx].reshape(-1, 1)
+            ln_I_valid = ln_I[valid_idx]
+            
+            # Prepare sample weights if error data available
+            sample_weights = None
+            if self.dI_data is not None:
+                dI_filtered = self.dI_data[self.filtered_indices]
+                dI_range = dI_filtered[self.q_min_idx:self.q_max_idx+1] / self.norm_factor
+                # For ln(I), error propagation gives σ_ln(I) = σ_I/I
+                weights = I_corrected[valid_idx]**2 / (dI_range[valid_idx]**2)
+                sample_weights = np.where(np.isfinite(weights) & (weights > 0), weights, 1.0)
+            
+            # Select algorithm
+            algorithms = {
+                'linear': LinearRegression(),
+                'huber': HuberRegressor(epsilon=1.35, max_iter=100),
+                'ridge': Ridge(alpha=1.0),
+                'theilsen': TheilSenRegressor(random_state=42),
+                'ransac': RANSACRegressor(random_state=42, max_trials=100)
+            }
+            
+            if algorithm not in algorithms:
+                return {'success': False, 'message': f"Unknown algorithm: {algorithm}"}
+            
+            regressor = algorithms[algorithm]
+            
+            # Fit the model
+            if algorithm in ['linear', 'ridge'] and sample_weights is not None:
+                regressor.fit(q_sq_valid, ln_I_valid, sample_weight=sample_weights)
+            else:
+                regressor.fit(q_sq_valid, ln_I_valid)
+            
+            # Extract parameters
+            slope = regressor.coef_[0] if hasattr(regressor, 'coef_') else 0
+            intercept = regressor.intercept_ if hasattr(regressor, 'intercept_') else 0
+            
+            # Calculate Guinier parameters
+            if slope >= 0:
+                return {'success': False, 'message': "Positive slope - invalid Guinier region"}
+            
+            Rg = np.sqrt(-3 * slope)
+            I0 = np.exp(intercept)
+            
+            # Calculate fit quality
+            ln_I_pred = regressor.predict(q_sq_valid)
+            r_squared = r2_score(ln_I_valid, ln_I_pred)
+            
+            # Calculate chi-squared
+            residuals = ln_I_valid - ln_I_pred
+            n = len(residuals)
+            p = 2  # Two parameters
+            if sample_weights is not None:
+                chi_squared = np.sum(sample_weights * residuals**2) / (n - p)
+            else:
+                chi_squared = np.sum(residuals**2) / (n - p)
+            
+            # Cross-validation if requested
+            cv_scores = None
+            cv_mean = None
+            cv_std = None
+            if cross_validate:
+                try:
+                    cv_scores = cross_val_score(
+                        algorithms[algorithm], q_sq_valid, ln_I_valid, 
+                        cv=min(5, len(ln_I_valid)), scoring='r2'
+                    )
+                    cv_mean = np.mean(cv_scores)
+                    cv_std = np.std(cv_scores)
+                except:
+                    cv_scores = None
+            
+            # Physical validation
+            max_q_rg = q_range[valid_idx][-1] * Rg
+            warning = ""
+            if max_q_rg > 1.3:
+                warning = f"Warning: q·Rg exceeds 1.3 (max q·Rg = {max_q_rg:.2f})"
+            
+            # Store results
+            self.Rg = Rg
+            self.I0 = I0
+            self.r_squared = r_squared
+            self.chi_squared = chi_squared
+            self.fit_slope = slope
+            self.fit_intercept = intercept
+            self.Rg_error = 0.0  # sklearn doesn't provide parameter errors directly
+            self.I0_error = 0.0
+            
+            result = {
+                'success': True,
+                'message': f"Sklearn {algorithm} fit completed: Rg = {Rg:.2f} Å",
+                'algorithm': algorithm,
+                'Rg': Rg,
+                'I0': I0,
+                'r_squared': r_squared,
+                'chi_squared': chi_squared,
+                'max_q_rg': max_q_rg,
+                'valid_guinier': max_q_rg <= 1.3,
+                'warning': warning,
+                'cv_scores': cv_scores,
+                'cv_mean': cv_mean,
+                'cv_std': cv_std,
+                'sklearn_model': regressor
+            }
+            
+            # Store the sklearn model
+            self.sklearn_models[algorithm] = result
+            
+            return result
+            
+        except Exception as e:
+            return {'success': False, 'message': f"Sklearn fitting failed: {str(e)}"}
+    
+    def compare_methods(self):
+        """
+        Compare traditional and sklearn fitting methods.
+        
+        Returns:
+        --------
+        dict : Comparison results for all methods
+        """
+        if self.q_data is None or self.I_data is None:
+            return {'success': False, 'message': "No data loaded"}
+        
+        comparison = {}
+        
+        # Traditional method
+        traditional_result = self.perform_fit(use_robust=False)
+        if traditional_result['success']:
+            comparison['traditional'] = {
+                'method': 'Traditional (numpy.polyfit)',
+                'Rg': traditional_result['Rg'],
+                'I0': traditional_result['I0'],
+                'r_squared': traditional_result['r_squared'],
+                'chi_squared': traditional_result['chi_squared'],
+                'notes': 'Standard least squares fitting'
+            }
+        
+        # Traditional robust method
+        robust_result = self.perform_fit(use_robust=True)
+        if robust_result['success']:
+            comparison['traditional_robust'] = {
+                'method': 'Traditional Robust (Theil-Sen/Huber)',
+                'Rg': robust_result['Rg'],
+                'I0': robust_result['I0'],
+                'r_squared': robust_result['r_squared'],
+                'chi_squared': robust_result['chi_squared'],
+                'notes': 'Robust against outliers'
+            }
+        
+        # Sklearn methods
+        if self.sklearn_available:
+            sklearn_methods = {
+                'linear': 'Linear Regression',
+                'huber': 'Huber Regression (robust)',
+                'ridge': 'Ridge Regression (L2)',
+                'theilsen': 'Theil-Sen Regression'
+            }
+            
+            for method, description in sklearn_methods.items():
+                sklearn_result = self.fit_with_sklearn(method, cross_validate=True)
+                if sklearn_result['success']:
+                    comparison[f'sklearn_{method}'] = {
+                        'method': f'Sklearn {description}',
+                        'Rg': sklearn_result['Rg'],
+                        'I0': sklearn_result['I0'],
+                        'r_squared': sklearn_result['r_squared'],
+                        'chi_squared': sklearn_result['chi_squared'],
+                        'cv_mean': sklearn_result['cv_mean'],
+                        'cv_std': sklearn_result['cv_std'],
+                        'notes': self._get_algorithm_notes(method)
+                    }
+        
+        self.model_comparison = comparison
+        return comparison
+    
+    def _get_algorithm_notes(self, algorithm):
+        """Get descriptive notes for sklearn algorithms"""
+        notes = {
+            'linear': 'Standard linear regression',
+            'huber': 'Robust to outliers, good for noisy data',
+            'ridge': 'Regularized regression, prevents overfitting',
+            'theilsen': 'Very robust, good for heavy outliers',
+            'ransac': 'Robust to outliers, random sampling'
+        }
+        return notes.get(algorithm, 'Advanced sklearn algorithm')
+    
+    def get_best_sklearn_model(self):
+        """
+        Get the best sklearn model based on cross-validation scores.
+        
+        Returns:
+        --------
+        dict : Best model information
+        """
+        if not self.sklearn_models:
+            return {'success': False, 'message': "No sklearn models fitted"}
+        
+        best_model = None
+        best_score = -np.inf
+        
+        for name, result in self.sklearn_models.items():
+            if result.get('cv_mean') is not None:
+                if result['cv_mean'] > best_score:
+                    best_score = result['cv_mean']
+                    best_model = result
+        
+        if best_model is None:
+            # Fall back to r_squared
+            for name, result in self.sklearn_models.items():
+                if result.get('r_squared') is not None:
+                    if result['r_squared'] > best_score:
+                        best_score = result['r_squared']
+                        best_model = result
+        
+        if best_model is None:
+            return {'success': False, 'message': "No valid sklearn models found"}
+        
+        return {
+            'success': True,
+            'best_model': best_model,
+            'recommendation': f"Best algorithm: {best_model['algorithm']} (CV score: {best_model.get('cv_mean', 'N/A')})"
+        }

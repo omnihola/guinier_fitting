@@ -6,7 +6,6 @@ import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import os
 from guinier_core import GuinierAnalyzer
-from guinier_sklearn_integration import EnhancedGuinierAnalyzer
 
 
 class GuinierAnalysisGUI:
@@ -15,8 +14,20 @@ class GuinierAnalysisGUI:
         self.root.title("Guinier Analysis for SAXS Data - Enhanced with Machine Learning")
         self.root.geometry("1400x900")
         
-        # Initialize enhanced analyzer
-        self.analyzer = EnhancedGuinierAnalyzer()
+        # Set application icon
+        try:
+            if os.path.exists('guinier_icon.png'):
+                # For most systems, use PNG
+                icon = tk.PhotoImage(file='guinier_icon.png')
+                self.root.iconphoto(True, icon)
+            elif os.path.exists('guinier_icon.ico'):
+                # For Windows systems
+                self.root.iconbitmap('guinier_icon.ico')
+        except Exception as e:
+            print(f"Could not load icon: {e}")
+        
+        # Initialize analyzer
+        self.analyzer = GuinierAnalyzer()
         
         self._create_widgets()
         
@@ -690,12 +701,8 @@ class GuinierAnalysisGUI:
             messagebox.showerror("Error", result['message'])
 
 
-def main():
-    """Main function to run the GUI application"""
+if __name__ == "__main__":
+    # For direct execution, create a minimal launcher
     root = tk.Tk()
     app = GuinierAnalysisGUI(root)
-    root.mainloop()
-
-
-if __name__ == "__main__":
-    main() 
+    root.mainloop() 
