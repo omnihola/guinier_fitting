@@ -24,14 +24,24 @@ pip install -r requirements.txt
 - `scipy` - Scientific computing and optimization
 - `pandas` - Data manipulation and analysis
 - `matplotlib` - Plotting and visualization
-- `tkinter` - GUI framework (usually included with Python)
 - `scikit-learn` - Machine learning algorithms (optional but recommended)
+- `PySide6` - Modern GUI framework (recommended)
+- `tkinter` - Classic GUI framework (fallback, usually included with Python)
 
 ## Quick Start
 
 ### GUI Application
 ```bash
 python guinier_analysis.py
+```
+
+The application automatically detects and uses the best available GUI framework:
+- **PySide6 Interface** (recommended): Modern, professional interface with enhanced styling
+- **Tkinter Interface** (fallback): Classic interface for compatibility
+
+For the best experience, install PySide6:
+```bash
+pip install PySide6
 ```
 
 ### Programmatic Usage
@@ -62,17 +72,17 @@ comparison = analyzer.compare_methods()
 
 ```
 guinier/
-├── guinier_analysis.py    # Main entry point
-├── guinier_core.py        # Core analysis engine
-├── guinier_gui.py         # GUI implementation
-├── guinier_icon.png       # Application icon (PNG format)
-├── guinier_icon.ico       # Application icon (ICO format)
-├── requirements.txt       # Dependencies
-├── README.md             # This file
-├── ICON_DESIGN.md        # Icon design documentation
-├── examples/             # Usage examples
+├── guinier_analysis.py       # Main entry point (auto-detects GUI)
+├── guinier_core.py           # Core analysis engine
+├── guinier_gui.py            # Classic tkinter GUI
+├── guinier_gui_pyside6.py    # Modern PySide6 GUI (recommended)
+├── guinier_icon.png          # Application icon (PNG format)
+├── guinier_icon.ico          # Application icon (ICO format)
+├── requirements.txt          # Dependencies
+├── README.md                # This file
+├── examples/                # Usage examples
 │   └── example_usage.py
-└── tests/               # Test files
+└── tests/                   # Test files
     └── test_gui_sklearn.py
 ```
 
@@ -118,28 +128,36 @@ Main analysis class with comprehensive functionality:
 
 ## GUI Features
 
+### Interface Options
+- **PySide6 Interface** (recommended): Modern, professional styling with enhanced user experience
+- **Tkinter Interface** (fallback): Classic interface for compatibility
+
 ### Data Loading
 - Support for `.grad`, `.txt`, and `.csv` formats
 - Automatic format detection
 - Data validation and error handling
+- Progress indicators for long operations
 
 ### Processing Controls
 - Background subtraction
 - Normalization factor adjustment
 - SNR threshold filtering
 - Manual and automatic range selection
+- Real-time parameter updates
 
 ### Fitting Options
 - Algorithm selection dropdown
 - Cross-validation toggle
 - Robust fitting option
 - Method comparison tool
+- Best model recommendations
 
 ### Visualization
-- Raw SAXS data plot
-- Guinier plot (ln(I) vs q²)
-- Residuals analysis
-- Real-time updates
+- Raw SAXS data plot with error bars
+- Guinier plot (ln(I) vs q²) with fit visualization
+- Residuals analysis with statistics
+- Real-time updates and interactive plots
+- High-quality plot export (PDF)
 
 ## Data Formats
 
@@ -197,9 +215,19 @@ python tests/test_gui_sklearn.py
 
 ### Common Issues
 1. **Scikit-learn not found**: Install with `pip install scikit-learn`
-2. **Fitting fails**: Check data quality and range selection
-3. **GUI not responding**: Ensure tkinter is properly installed
-4. **Poor fit quality**: Try different algorithms or adjust range
+2. **PySide6 not found**: Install with `pip install PySide6` for the modern interface
+3. **Fitting fails**: Check data quality and range selection
+4. **GUI not starting**: Ensure either PySide6 or tkinter is available
+
+### GUI Selection
+The application automatically selects the best available GUI framework:
+1. First tries PySide6 (modern interface)
+2. Falls back to tkinter (classic interface)
+3. If neither is available, displays installation instructions
+
+### Additional Tips
+- **Poor fit quality**: Try different algorithms or adjust range
+- **GUI not responding**: Restart the application or check system requirements
 
 ### Performance Tips
 - Use automatic range selection for optimal results

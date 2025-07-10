@@ -16,12 +16,24 @@ import os
 # Add current directory to path to ensure imports work
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-try:
-    import tkinter as tk
-    from guinier_gui import GuinierAnalysisGUI
+def main():
+    """Main function to launch the Guinier analysis GUI."""
+    print("Starting Guinier Analysis GUI...")
     
-    def main():
-        """Main function to launch the Guinier analysis GUI with icon support."""
+    # Try modern PySide6 interface first
+    try:
+        from guinier_gui_pyside6 import main as pyside6_main
+        print("Using modern PySide6 interface")
+        pyside6_main()
+        return
+    except ImportError:
+        print("PySide6 not available, falling back to tkinter interface")
+    
+    # Fallback to tkinter interface
+    try:
+        import tkinter as tk
+        from guinier_gui import GuinierAnalysisGUI
+        
         root = tk.Tk()
         
         # Set application icon at startup
@@ -38,12 +50,14 @@ try:
         
         app = GuinierAnalysisGUI(root)
         root.mainloop()
-    
-    if __name__ == "__main__":
-        main()
         
-except ImportError as e:
-    print(f"Error importing required modules: {e}")
-    print("Please ensure all required dependencies are installed:")
-    print("pip install -r requirements.txt")
-    sys.exit(1) 
+    except ImportError as e:
+        print(f"Error importing required modules: {e}")
+        print("Neither PySide6 nor tkinter are available.")
+        print("Please install PySide6 for the best experience:")
+        print("pip install PySide6")
+        print("Or ensure tkinter is available on your system.")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main() 
